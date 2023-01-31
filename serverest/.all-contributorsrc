@@ -1,0 +1,141 @@
+{
+  "files": [
+    "README.md",
+    ".github/CONTRIBUTING.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "commitConvention": "angular",
+  "contributors": [
+    {
+      "login": "leandromuto",
+      "name": "Leandro Muto",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/1757827?v=4",
+      "profile": "https://github.com/leandromuto",
+      "contributions": [
+        "doc",
+        "infra"
+      ]
+    },
+    {
+      "login": "fejsrodrigues",
+      "name": "Felipe Rodrigues",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/8000936?v=4",
+      "profile": "https://github.com/fejsrodrigues",
+      "contributions": [
+        "infra"
+      ]
+    },
+    {
+      "login": "doamaral",
+      "name": "Lucas Amaral",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/7451330?v=4",
+      "profile": "https://github.com/doamaral",
+      "contributions": [
+        "talk",
+        "bug",
+        "doc"
+      ]
+    },
+    {
+      "login": "uLucasFraga",
+      "name": "lucas.fraga",
+      "avatar_url": "https://avatars2.githubusercontent.com/u/23031781?v=4",
+      "profile": "https://www.linkedin.com/in/ulucasfraga/",
+      "contributions": [
+        "ideas",
+        "bug"
+      ]
+    },
+    {
+      "login": "brunobatista25",
+      "name": "bruno batista",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/8673550?v=4",
+      "profile": "https://www.linkedin.com/in/bruno-batista-87734464/?locale=en_US",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "eliasreis54",
+      "name": "Elias Reis",
+      "avatar_url": "https://avatars1.githubusercontent.com/u/29265526?v=4",
+      "profile": "https://github.com/eliasreis54",
+      "contributions": [
+        "maintenance",
+        "infra"
+      ]
+    },
+    {
+      "login": "gabriel-pinheiro",
+      "name": "gabriel-pinheiro",
+      "avatar_url": "https://avatars2.githubusercontent.com/u/56726395?v=4",
+      "profile": "https://github.com/gabriel-pinheiro",
+      "contributions": [
+        "code",
+        "ideas"
+      ]
+    },
+    {
+      "login": "gomex",
+      "name": "Rafael Gomes",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/95132?v=4",
+      "profile": "http://gomex.me",
+      "contributions": [
+        "infra"
+      ]
+    },
+    {
+      "login": "rustnnes",
+      "name": "Diego Bandeira",
+      "avatar_url": "https://avatars1.githubusercontent.com/u/638445?v=4",
+      "profile": "https://about.me/rustnnes",
+      "contributions": [
+        "infra"
+      ]
+    },
+    {
+      "login": "maximilianoalves",
+      "name": "Maximiliano Alves",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/11561118?v=4",
+      "profile": "https://github.com/maximilianoalves",
+      "contributions": [
+        "talk"
+      ]
+    },
+    {
+      "login": "murilomaiaa",
+      "name": "Murilo Maia",
+      "avatar_url": "https://avatars.githubusercontent.com/u/56596799?v=4",
+      "profile": "https://github.com/murilomaiaa",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "crisnazario",
+      "name": "Cristina Nazário",
+      "avatar_url": "https://avatars.githubusercontent.com/u/37200398?v=4",
+      "profile": "https://github.com/crisnazario",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "edumaxsantos",
+      "name": "Eduardo Santos",
+      "avatar_url": "https://avatars.githubusercontent.com/u/10568807?v=4",
+      "profile": "http://www.eduardosantos.dev",
+      "contributions": [
+        "code"
+      ]
+    }
+  ],
+  "badgeTemplate": "![All Contributors](https://img.shields.io/badge/all_contributors-<%= contributors.length %>-orange.svg?style=for-the-badge)",
+  "contributorsPerLine": 7,
+  "projectName": "ServeRest",
+  "projectOwner": "ServeRest",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "skipCi": false
+}

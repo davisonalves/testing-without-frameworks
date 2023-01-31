@@ -1,0 +1,22 @@
+# stryker temp files
+.stryker-tmp
+stryker.log
+
+# Dependency directories
+.idea/
+.nyc_output/
+coverage/
+coverage-unit/
+coverage-integration/
+node_modules/
+reports/
+coverage.lcov
+
+## Mac crap
+.DS_Store
+.vscode/
+
+## Others
+tmp/
+*.tmp
+*.swp

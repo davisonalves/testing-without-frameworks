@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  base:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: test
+    volumes:
+      - ./test:/app/test
+
+  run-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: dev
+    volumes:
+      - .:/app
+    ports:
+      - "3000:3000"
+
+# All tests \/
+
+  test-contract:
+    extends: base
+    environment:
+      - PACT_BROKER_TOKEN
+      - PACT_URL
+      - CI
+    command: npm run test:contract
+    volumes:
+      - ./.git:/app/.git
+
+  test-unit:
+    extends: base
+    command: npm run test:unit
+    volumes:
+      - ./coverage-unit:/app/coverage-unit
+
+  test-integration:
+    extends: base
+    command: npm run test:integration
+    volumes:
+      - ./coverage-integration:/app/coverage-integration
+    environment:
+      TEST_TYPE: 'integration'
+
+  run-app-e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: 'serverest-development'
+
+  test-e2e-localhost:
+    extends: base
+    command: npm run test:e2e
+    environment:
+      TEST_TYPE: 'e2e-localhost'
+    depends_on:
+      - run-app-e2e
+    network_mode: 'service:run-app-e2e'
+
+  test-mutation:
+    extends: base
+    environment:
+      - STRYKER_DASHBOARD_API_KEY
+      - TEST_TYPE=mutation
+    command: npm run test:mutation
+    volumes:
+      - ./reports:/app/reports
+
+  test-mutation-diff:
+    extends: base
+    environment:
+      - STRYKER_DASHBOARD_API_KEY
+      - TEST_TYPE=mutation
+    command: npm run test:mutation:diff
+    volumes:
+      - ./reports:/app/reports
+
+  test-infra:
+    build:
+      context: .
+      dockerfile: Dockerfile.terratest
+    command: >
+      bash -c "go mod tidy
+      && go test -count=1 -v -timeout 5m"
+    volumes:
+      - ./test/infra:/app/test/infra
+      - /var/run/docker.sock:/var/run/docker.sock
+
+# Deploy test \/
+
+  test-e2e-staging:
+    extends: base
+    command: npm run test:e2e -- --retries 1 --slow 1000
+    environment:
+      TEST_TYPE: 'e2e-staging'
+
+  test-e2e-smoke-production:
+    extends: base
+    command: npm run test:smoke -- --retries 1 --slow 1000
+    environment:
+      TEST_TYPE: 'e2e-production'

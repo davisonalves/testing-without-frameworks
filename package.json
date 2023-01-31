@@ -1,0 +1,15 @@
+{
+  "name": "api-tests",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "cd serverest/ && npm install",
+    "start": "cd serverest/ && npm run dev",
+    "test": "node --test tests/"
+  },
+  "keywords": ["test", "automation-tests", "nodejs"],
+  "author": "Davison Alves da Silva",
+  "license": "ISC"
+}

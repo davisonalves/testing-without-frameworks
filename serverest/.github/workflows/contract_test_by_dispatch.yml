@@ -1,0 +1,21 @@
+name: Contract Test Triggered by Consumer
+
+on:
+  repository_dispatch:
+    types: [pact-changed]
+
+jobs:
+  test-contract:
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: ${{ github.event.client_payload.providerProductionSha }}
+    - run: docker-compose build test-contract
+    - name: Run contract test
+      run: make test-contract
+      env:
+        PACT_URL: ${{ github.event.client_payload.pactUrl }}
+        PACT_BROKER_TOKEN: ${{ secrets.PACT_BROKER_TOKEN }}

@@ -1,0 +1,296 @@
+name: Deploy ServeRest on the web
+
+# This pipeline runs when the continuous_delivery.yml pipeline generates a new release
+
+on:
+  release:
+    types: [released]
+
+concurrency: ${{ github.workflow }}
+
+env:
+  PROJECT_ID: serverest
+  SERVICE_NAME: app
+  REGION: us-central1
+  SERVICE_PRODUCTION: app
+  SERVICE_STAGING: app-staging
+
+jobs:
+  build-and-push-image-to-gcloud-container-registry:
+    name: Build and push image to container registry
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Project checkout
+      uses: actions/checkout@v3
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v0
+    - name: Authentication on GCloud
+      run: |
+        echo $GCP_IAM_SERVICE_ACCOUNT_KEY > gcloud-service-key.json
+        gcloud auth activate-service-account --key-file gcloud-service-key.json
+      env:
+        GCP_IAM_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_IAM_SERVICE_ACCOUNT_KEY }}
+    - run: gcloud config set project serverest
+    - name: Build and deploy to Gcloud
+      run: |
+        gcloud builds submit . \
+          --config=cloudbuild.yaml \
+          --substitutions=COMMIT_SHA=${{ github.sha }}
+
+  deploy-staging:
+    name: Deploy on staging environment (staging.serverest.dev)
+    needs: build-and-push-image-to-gcloud-container-registry
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v0
+    - name: Authentication on GCloud
+      run: |
+        echo $GCP_IAM_SERVICE_ACCOUNT_KEY > gcloud-service-key.json
+        gcloud auth activate-service-account --key-file gcloud-service-key.json
+      env:
+        GCP_IAM_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_IAM_SERVICE_ACCOUNT_KEY }}
+    - run: gcloud config set project serverest
+    - name: Deploy container image to 'staging' environment
+      run: |
+        gcloud run \
+          deploy $SERVICE_STAGING \
+          --image gcr.io/$PROJECT_ID/$SERVICE_NAME:${{ github.sha }} \
+          --region $REGION
+
+  test-e2e-staging:
+    name: E2E test on staging environment
+    needs: deploy-staging
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Project checkout
+      uses: actions/checkout@v3
+    - run: docker-compose build test-e2e-staging
+    - name: Run E2E test in staging environment
+      run: make test-e2e-staging
+
+  open-issue-staging:
+    name: Open issue when staging test fail
+    needs: test-e2e-staging
+    if: failure()
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Create issue
+      uses: dacbd/create-issue-action@v1.2.0
+      with:
+        token: ${{ github.token }}
+        title: Staging tests failed - Deploy aborted
+        body: |
+          _This is an automatically generated issue_
+
+          The attempt to deploy the `${{ github.ref }}` tag failed. Staging tests failed and because of that the version `${{ github.ref }}` was not sent to production.
+
+          ## Context
+
+          |                           | Detail                                                                        	|
+          |--------------------------	|-------------------------------------------------------------------------------	|
+          | **Failed Run**    	      | https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }} 	|
+          | **Codebase**      	      | https://github.com/${{ github.repository }}/tree/${{ github.sha }}            	|
+          | **Workflow name**       	| `${{ github.workflow }}`                                                      	|
+          | **Tag**                  	| `${{ github.ref }}`                                                           	|
+          | **Environment affected** 	| https://staging.serverest.dev/                                                	|
+        assignees: PauloGoncalvesBH
+        labels: bug
+
+  deploy-production:
+    name: Deploy on prod environment (serverest.dev)
+    needs: test-e2e-staging
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v0
+    - name: Authentication on GCloud
+      run: |
+        echo $GCP_IAM_SERVICE_ACCOUNT_KEY > gcloud-service-key.json
+        gcloud auth activate-service-account --key-file gcloud-service-key.json
+      env:
+        GCP_IAM_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_IAM_SERVICE_ACCOUNT_KEY }}
+    - run: gcloud config set project serverest
+    - name: Deploy container image to 'production' environment
+      run: |
+        gcloud run \
+          deploy $SERVICE_PRODUCTION \
+          --image gcr.io/$PROJECT_ID/$SERVICE_NAME:${{ github.sha }} \
+          --region $REGION
+
+  test-e2e-smoke-production:
+    name: Smoke test in production environment
+    needs: deploy-production
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Project checkout
+      uses: actions/checkout@v3
+    - run: docker-compose build test-e2e-smoke-production
+    - name: Run smoke test in production environment
+      run: make test-e2e-smoke-production
+
+  open-issue-production:
+    name: Open issue when production smoke test fail
+    needs: test-e2e-smoke-production
+    if: failure()
+
+    runs-on: ubuntu-22.04
+
+    outputs:
+      issue-number: ${{ steps.create-issue-action.outputs.number }}
+
+    steps:
+    - name: Create issue
+      uses: dacbd/create-issue-action@v1.2.0
+      id: create-issue-action
+      with:
+        token: ${{ github.token }}
+        title: Production tests failed - Deploy aborted
+        body: |
+          _This is an automatically generated issue_
+
+          The attempt to deploy the `${{ github.ref }}` tag failed. Production tests failed.
+
+          ## Context
+
+          |                          | Detail                                                                        	|
+          |------------------------- |-------------------------------------------------------------------------------	|
+          | **Failed Run**           | https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }} 	|
+          | **Codebase**             | https://github.com/${{ github.repository }}/tree/${{ github.sha }}            	|
+          | **Workflow name**        | `${{ github.workflow }}`                                                      	|
+          | **Tag**                  | `${{ github.ref }}`                                                           	|
+          | **Environment affected** | https://serverest.dev/                                                       	|
+        assignees: PauloGoncalvesBH
+        labels: bug
+
+# Rollback jobs \/
+
+  rollback-get-previous-info:
+    name: Get info from previous version (not the latest version)
+    needs: test-e2e-smoke-production
+    if: ${{ failure() && needs.test-e2e-smoke-production.result == 'failure' }}
+
+    runs-on: ubuntu-22.04
+
+    outputs:
+      git_hash: ${{ steps.info_about_previous_version.outputs.git_hash }}
+      git_tag: ${{ steps.info_about_previous_version.outputs.git_tag }}
+
+    steps:
+    - name: Project checkout
+      uses: actions/checkout@v3
+      with:
+        ref: trunk
+        fetch-depth: 0
+    - run: |
+        echo "::set-output name=git_hash::$(git rev-parse $(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1)))"
+        echo "::set-output name=git_tag::$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1))"
+      id: info_about_previous_version
+
+  rollback-production:
+    name: Rollback production environment (serverest.dev)
+    needs: [rollback-get-previous-info, open-issue-production]
+    if: ${{ always() && needs.rollback-get-previous-info.result == 'success' }}
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v0
+    - name: Authentication on GCloud
+      run: |
+        echo $GCP_IAM_SERVICE_ACCOUNT_KEY > gcloud-service-key.json
+        gcloud auth activate-service-account --key-file gcloud-service-key.json
+      env:
+        GCP_IAM_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_IAM_SERVICE_ACCOUNT_KEY }}
+    - run: gcloud config set project serverest
+    - name: Deploy image from '${{ needs.rollback-get-previous-info.outputs.git_tag }}' to 'production' environment
+      run: |
+        gcloud run \
+          deploy $SERVICE_PRODUCTION \
+          --image gcr.io/$PROJECT_ID/$SERVICE_NAME:${{ needs.rollback-get-previous-info.outputs.git_hash }} \
+          --region $REGION
+    - uses: badsyntax/github-action-issue-comment@master
+      name: Comment on generated issue about rollback
+      with:
+        action: create
+        issue-number: ${{ needs.open-issue-production.outputs.issue-number }}
+        body: _This is an automatically generated comment_ \n\nRollback was performed in the production environment. \n\nThe production version is now `${{ needs.rollback-get-previous-info.outputs.git_tag }}`. \n\nUse the [staging environment](https://staging.serverest.dev/) for testing the failure.
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+  contract-test-rollback:
+    name: Contract test - Rollback 'production' tag
+    needs: rollback-production
+    if: ${{ always() && needs.rollback-production.result == 'success' }}
+
+    runs-on: ubuntu-22.04
+
+    # Why delete tag on rollback? Read: https://docs.pact.io/pact_broker/tags#handling-rollbacks
+    steps:
+    - name: Delete Production tag recently created
+      run: |
+        curl -X DELETE https://paulogoncalves.pactflow.io/pacticipants/$PACTICIPANT/versions/$VERSION/tags/$TAG -H "Authorization: Bearer $PACT_BROKER_TOKEN"
+      env:
+        PACTICIPANT: ServeRest - API Rest
+        VERSION: ${{ github.sha }}
+        TAG: production
+        PACT_BROKER_TOKEN: ${{ secrets.PACT_BROKER_TOKEN }}
+
+# Rollback jobs /\
+
+  contract-test-tag-staging:
+    name: Contract test - Tag with 'staging'
+    needs: deploy-staging
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v3
+    - run: docker pull pactfoundation/pact-cli:latest
+    - name: Tag the pact contract with 'staging' tag
+      run: |
+        docker run --rm \
+          -e PACT_BROKER_BASE_URL \
+          -e PACT_BROKER_TOKEN \
+          pactfoundation/pact-cli \
+          broker create-version-tag \
+          --pacticipant 'ServeRest - API Rest' \
+          --version ${{ github.sha }} \
+          --tag staging
+      env:
+        PACT_BROKER_BASE_URL: https://paulogoncalves.pactflow.io
+        PACT_BROKER_TOKEN: ${{ secrets.PACT_BROKER_TOKEN }}
+
+  contract-test-tag-production:
+    name: Contract test - Tag with 'production'
+    needs: deploy-production
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v3
+    - run: docker pull pactfoundation/pact-cli:latest
+    - name: Tag the pact contract with 'production' tag
+      run: |
+        docker run --rm \
+          -e PACT_BROKER_BASE_URL \
+          -e PACT_BROKER_TOKEN \
+          pactfoundation/pact-cli \
+          broker create-version-tag \
+          --pacticipant 'ServeRest - API Rest' \
+          --version ${{ github.sha }} \
+          --tag production
+      env:
+        PACT_BROKER_BASE_URL: https://paulogoncalves.pactflow.io
+        PACT_BROKER_TOKEN: ${{ secrets.PACT_BROKER_TOKEN }}

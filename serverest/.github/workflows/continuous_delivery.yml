@@ -1,0 +1,60 @@
+name: Continuous Delivery
+
+on:
+  push:
+    branches: [trunk, beta]
+
+jobs:
+  common-ci:
+    uses: ./.github/workflows/common_ci.yml
+    secrets: inherit
+    with:
+      type_pipeline: 'continuous_delivery'
+
+  test-mutation:
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Project checkout
+      uses: actions/checkout@v3
+    - name: Get specific changed files
+      id: changed-files-specific
+      uses: tj-actions/changed-files@v32
+      with:
+        files: src
+    - name: Run mutation test
+      if: steps.changed-files-specific.outputs.any_changed == 'true'
+      run: make test-mutation
+      env:
+        STRYKER_DASHBOARD_API_KEY: ${{ secrets.STRYKER_DASHBOARD_API_KEY }}
+
+  release:
+    needs: [common-ci]
+
+    concurrency: create_release
+
+    runs-on: ubuntu-22.04
+    environment: production
+
+    steps:
+    - name: Project checkout
+      uses: actions/checkout@v3
+    - name: Node.js Setup
+      uses: actions/setup-node@v3
+      with:
+        node-version: 16
+    - name: Installation of Node.js dependencies
+      run: npm ci
+    - name: Release on NPM and Docker
+      run: npx semantic-release@18.0.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+    - run: docker-compose build test-contract
+    - name: Run contract test
+      run: make test-contract
+      env:
+        PACT_BROKER_TOKEN: ${{ secrets.PACT_BROKER_TOKEN }}
